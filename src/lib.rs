@@ -206,7 +206,8 @@ impl Macaroon {
 
     /// Generate a signature for the given macaroon
     pub fn generate_signature(&self, key: &[u8]) -> [u8; 32] {
-        let signature: [u8; 32] = crypto::generate_signature(key, &self.identifier);
+        let derived_key: [u8; 32] = crypto::generate_derived_key(key);
+        let signature: [u8; 32] = crypto::generate_signature(&derived_key, &self.identifier);
         self.caveats.iter().fold(signature, |sig, caveat| caveat.sign(&sig))
     }
 
@@ -272,7 +273,8 @@ impl Macaroon {
             return Ok(false);
         }
         verifier.reset();
-        verifier.set_signature(crypto::generate_signature(key, &self.identifier));
+        let derived_key: [u8; 32] = crypto::generate_derived_key(key);
+        verifier.set_signature(crypto::generate_signature(&derived_key, &self.identifier));
         self.verify_caveats(verifier)
     }
 
@@ -350,6 +352,7 @@ mod tests {
         assert!(macaroon_res.is_ok());
         let macaroon = macaroon_res.unwrap();
         assert!(macaroon.location.is_some());
+        assert!(macaroon.verify_signature(key));
         assert_eq!("location", macaroon.location.unwrap());
         assert_eq!("identifier", macaroon.identifier);
         assert_eq!(signature.to_vec(), macaroon.signature);
@@ -376,6 +379,7 @@ mod tests {
         assert_eq!(signature.to_vec(), macaroon.signature);
         assert_eq!(*caveat.as_first_party().unwrap(),
                    macaroon.first_party_caveats()[0]);
+        assert!(macaroon.verify_signature(key));
     }
 
     #[test]
@@ -392,5 +396,6 @@ mod tests {
         assert_eq!(id, caveat.id());
         assert_eq!(*caveat.as_third_party().unwrap(),
                    macaroon.third_party_caveats()[0]);
+        assert!(macaroon.verify_signature(key));
     }
 }
